@@ -14,7 +14,7 @@ class SPADEGenerator(nn.Module):
         oc = 64
         norm_G = 'spadespectralinstance'
         label_nc = 3 + cc
-        
+
         self.compress = nn.Conv2d(ic, cc, 3, padding=1)
         self.fc = nn.Conv2d(ic, 2 * ic, 3, padding=1)
 
@@ -29,11 +29,11 @@ class SPADEGenerator(nn.Module):
         self.up_1 = SPADEResnetBlock(ic, oc, norm_G, label_nc)
         self.conv_img = nn.Conv2d(oc, 3, 3, padding=1)
         self.up = nn.Upsample(scale_factor=2)
-        
+
     def forward(self, feature, image):
         cp = self.compress(feature)
         seg = torch.cat((F.interpolate(cp, size=(image.shape[2], image.shape[3])), image), dim=1)   # 7, 256, 256
-    
+
         x = feature      # 256, 64, 64
         x = self.fc(x)                # 512, 64, 64
         x = self.G_middle_0(x, seg)
@@ -50,7 +50,7 @@ class SPADEGenerator(nn.Module):
         x = self.conv_img(F.leaky_relu(x, 2e-1))
         # x = torch.tanh(x)
         x = F.sigmoid(x)
-        
+
         return x
 
 class DepthAwareAttention(nn.Module):
@@ -59,7 +59,7 @@ class DepthAwareAttention(nn.Module):
         super(DepthAwareAttention,self).__init__()
         self.chanel_in = in_dim
         self.activation = activation
-        
+
         self.query_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
         self.key_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
         self.value_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
@@ -72,21 +72,22 @@ class DepthAwareAttention(nn.Module):
                 source : input feature maps( B X C X W X H) 256,64,64
                 driving : input feature maps( B X C X W X H) 256,64,64
             returns :
-                out : self attention value + input feature 
+                out : self attention value + input feature
                 attention: B X N X N (N is Width*Height)
         """
         m_batchsize,C,width ,height = source.size()
+
         proj_query  = self.activation(self.query_conv(source)).view(m_batchsize,-1,width*height).permute(0,2,1) # B X CX(N) [bz,32,64,64]
         proj_key =  self.activation(self.key_conv(feat)).view(m_batchsize,-1,width*height) # B X C x (*W*H)
         energy =  torch.bmm(proj_query,proj_key) # transpose check
-        attention = self.softmax(energy) # BX (N) X (N) 
+        attention = self.softmax(energy) # BX (N) X (N)
         proj_value = self.activation(self.value_conv(feat)).view(m_batchsize,-1,width*height) # B X C X N
 
         out = torch.bmm(proj_value,attention.permute(0,2,1) )
         out = out.view(m_batchsize,C,width,height)
         out = self.gamma*out + feat
 
-        return out,attention     
+        return out,attention
 
 #### main ####
 class DepthAwareGenerator(nn.Module):
@@ -161,6 +162,12 @@ class DepthAwareGenerator(nn.Module):
 
     def forward(self, source_image, kp_driving, kp_source, source_depth, driving_depth):
         # Encoding (downsampling) part
+        # print(f"source_image size {source_image.size()}")
+        # print(f"kp_driving size {kp_driving['value'].size()}")
+        # print(f"kp_source size {kp_source['value'].size()}")
+        # print(f"source_depth size {source_depth.size()}")
+        # print(f"driving_depth size {driving_depth.size()}")
+
         out = self.first(source_image)
         for i in range(len(self.down_blocks)):
             out = self.down_blocks[i](out)
@@ -168,11 +175,11 @@ class DepthAwareGenerator(nn.Module):
         src_out = self.src_first(source_depth)
         for i in range(len(self.src_down_blocks)):
             src_out = self.src_down_blocks[i](src_out)
-        
+
         # dst_out = self.dst_first(driving_depth)
         # for i in range(len(self.down_blocks)):
         #     dst_out = self.dst_down_blocks[i](dst_out)
-        
+
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
@@ -254,7 +261,7 @@ class SPADEDepthAwareGenerator(nn.Module):
 
         self.AttnModule = DepthAwareAttention(out_features,nn.ReLU())
         self.decoder = SPADEGenerator()
-        
+
         self.estimate_occlusion_map = estimate_occlusion_map
         self.num_channels = num_channels
 
@@ -276,11 +283,11 @@ class SPADEDepthAwareGenerator(nn.Module):
         src_out = self.src_first(source_depth)
         for i in range(len(self.src_down_blocks)):
             src_out = self.src_down_blocks[i](src_out)
-        
+
         # dst_out = self.dst_first(driving_depth)
         # for i in range(len(self.down_blocks)):
         #     dst_out = self.dst_down_blocks[i](dst_out)
-        
+
         # Transforming feature representation according to deformation and occlusion
         output_dict = {}
         if self.dense_motion_network is not None:
@@ -301,7 +308,7 @@ class SPADEDepthAwareGenerator(nn.Module):
                 if out.shape[2] != occlusion_map.shape[2] or out.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=out.shape[2:], mode='bilinear')
                 out = out * occlusion_map
-            
+
             out,attention  = self.AttnModule(src_out,out)
 
             deformed_image = self.deform_input(source_image, deformation)
@@ -312,7 +319,7 @@ class SPADEDepthAwareGenerator(nn.Module):
                 if deformed_image.shape[2] != occlusion_map.shape[2] or deformed_image.shape[3] != occlusion_map.shape[3]:
                     occlusion_map = F.interpolate(occlusion_map, size=deformed_image.shape[2:], mode='bilinear')
                 deformed_image = deformed_image * occlusion_map
-            
+
         out = self.decoder(out, deformed_image)
 
         # # Decoding part

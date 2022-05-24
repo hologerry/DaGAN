@@ -85,14 +85,14 @@ class ResnetEncoder(nn.Module):
             self.num_ch_enc[1:] *= 4
 
     def forward(self, input_image):
-        self.features = []
+        features = []
         x = (input_image - 0.45) / 0.225
         x = self.encoder.conv1(x)
         x = self.encoder.bn1(x)
-        self.features.append(self.encoder.relu(x))
-        self.features.append(self.encoder.layer1(self.encoder.maxpool(self.features[-1])))
-        self.features.append(self.encoder.layer2(self.features[-1]))
-        self.features.append(self.encoder.layer3(self.features[-1]))
-        self.features.append(self.encoder.layer4(self.features[-1]))
+        features.append(self.encoder.relu(x))
+        features.append(self.encoder.layer1(self.encoder.maxpool(features[-1])))
+        features.append(self.encoder.layer2(features[-1]))
+        features.append(self.encoder.layer3(features[-1]))
+        features.append(self.encoder.layer4(features[-1]))
 
-        return self.features
+        return features

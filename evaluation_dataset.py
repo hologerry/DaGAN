@@ -6,7 +6,7 @@ The class name should be consistent with both the filename and its dataset_mode 
 The filename should be <dataset_mode>_dataset.py
 The class name should be <Dataset_mode>Dataset.py
 You need to implement the following functions:
-    -- <modify_commandline_options>:　Add dataset-specific options and rewrite default values for existing options.
+    -- <modify_commandline_options>: Add dataset-specific options and rewrite default values for existing options.
     -- <__init__>: Initialize this dataset class.
     -- <__getitem__>: Return a data point and its metadata information.
     -- <__len__>: Return the number of images.
@@ -46,7 +46,7 @@ class EvaluationDataset(Dataset):
         self.dataroot = dataroot
         # self.videos = self.videos[5000]
         self.frame_shape = (3,256,256)
-        test_videos = os.listdir(os.path.join(self.dataroot,'test'))
+        test_videos = os.listdir(os.path.join(self.dataroot, 'test'))
         self.videos = test_videos
         pairs = pd.read_csv(pairs_list)
         self.source = pairs['source'].tolist()
@@ -89,7 +89,7 @@ class EvaluationDataset(Dataset):
         # driving = Image.open(path_driving).convert('RGB')
         # source = T.ToTensor()(source)
         # driving = T.ToTensor()(driving)
-        return {'source': source, 'driving': driving, 'path_source': path_source,'path_driving':path_driving, 'anchor': anchor}
+        return {'source': source, 'driving': driving, 'path_source': path_source,'path_driving': path_driving, 'anchor': anchor}
         
     def __len__(self):
         """Return the total number of images."""
