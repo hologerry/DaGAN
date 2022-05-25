@@ -157,13 +157,15 @@ def evaluate(eval_loader, generator, kp_detector, depth_encoder, depth_decoder, 
     fid_model = InceptionV3([block_idx])
     fid_model = fid_model.cuda()
     fid_model.eval()
+    save_video = True
     with torch.no_grad():
-        for i, val_batch in tqdm(enumerate(eval_loader), total=len(eval_loader), leave=False):
+        for i, val_batch in tqdm(enumerate(eval_loader), total=len(eval_loader), leave=False, desc='Forward'):
             video = val_batch[0]  # (video, video_name)
             video_name = val_batch[1][0]
             N, T, C, H, W = video.size()
             assert N == 1
             n_batch = (T - 1) // B + 1
+            outputs = []
             for b_idx in tqdm(range(n_batch)):
                 source = video[0, 0:1, :, :, :]
                 driving = video[0, 1+b_idx*B:1+b_idx*B+B, :, :, :]
@@ -186,6 +188,12 @@ def evaluate(eval_loader, generator, kp_detector, depth_encoder, depth_decoder, 
 
                 prediction = out['prediction']
 
+                if save_video:
+                    out_imgs = torch.cat((source, driving, out['prediction']), dim=3)
+                    out_imgs = np.transpose(out_imgs.data.cpu().numpy(), [0, 2, 3, 1])
+                    out_imgs = [img_as_ubyte(img) for img in list(out_imgs)]
+                    outputs += out_imgs
+
                 all_fakes.append(prediction.cpu())
                 all_reals.append(driving.cpu())
                 n_samples += driving.size(0)
@@ -198,10 +206,14 @@ def evaluate(eval_loader, generator, kp_detector, depth_encoder, depth_decoder, 
                 mse_avg_meter.update(mse_error)
                 ssim_avg_meter.update(ssim_score)
                 ms_ssim_avg_meter.update(ms_ssim_score)
+
+            if save_video:
+                output_path = os.path.join(opt.results_dir, video_name)
+                imageio.mimsave(output_path, outputs, fps=30)
  
         pred_acc_fake, pred_acc_real = np.empty((n_samples, 2048)), np.empty((n_samples, 2048))
         start = 0
-        for fake, real in zip(all_fakes, all_reals):
+        for fake, real in tqdm(zip(all_fakes, all_reals), total=len(all_fakes), desc='FID Inception'):
             pred_fake = fid_model(fake.cuda(non_blocking=True))[0]
             pred_real = fid_model(real.cuda(non_blocking=True))[0]
             if pred_fake.size(2) != 1 or pred_fake.size(3) != 1:
@@ -235,6 +247,7 @@ if __name__ == "__main__":
     parser.add_argument("--source_image", default='sup-mat/source.png', help="path to source image")
     parser.add_argument("--driving_video", default='sup-mat/source.png', help="path to driving video")
     parser.add_argument("--result_video", default='result.mp4', help="path to output")
+    parser.add_argument("--results_dir", default='results', help="path to output")
 
     parser.add_argument("--relative", dest="relative", action="store_true", help="use relative or absolute keypoint coordinates")
     parser.add_argument("--adapt_scale", dest="adapt_scale", action="store_true", help="adapt movement scale based on convex hull of keypoints")
@@ -256,6 +269,7 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
 
+    os.makedirs(opt.results_dir, exist_ok=True)
     depth_encoder = depth.ResnetEncoder(18, False)
     depth_decoder = depth.DepthDecoder(num_ch_enc=depth_encoder.num_ch_enc, scales=range(4))
     loaded_dict_enc = torch.load('pretrained/depth_face_model/encoder.pth')
