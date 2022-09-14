@@ -137,8 +137,8 @@ class GeneratorFullModel(torch.nn.Module):
         self.discriminator = discriminator
         self.train_params = train_params
         self.scales = train_params['scales']
-        self.disc_scales = self.discriminator.module.scales
-        self.pyramid = ImagePyramide(self.scales, generator.module.num_channels)
+        self.disc_scales = self.discriminator.scales
+        self.pyramid = ImagePyramide(self.scales, generator.num_channels)
         if torch.cuda.is_available():
             self.pyramid = self.pyramid.cuda()
         self.opt = opt
@@ -336,8 +336,8 @@ class DiscriminatorFullModel(torch.nn.Module):
         self.generator = generator
         self.discriminator = discriminator
         self.train_params = train_params
-        self.scales = self.discriminator.module.scales
-        self.pyramid = ImagePyramide(self.scales, generator.module.num_channels)
+        self.scales = self.discriminator.scales
+        self.pyramid = ImagePyramide(self.scales, generator.num_channels)
         if torch.cuda.is_available():
             self.pyramid = self.pyramid.cuda()
 
